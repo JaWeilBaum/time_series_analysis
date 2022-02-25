@@ -166,7 +166,7 @@ local_trend_model = function(alpha, lambda, return_sse) {
   
   L = cbind(c(1, 1), c(0, 1))
   
-  total_sse = 0
+  total_sse = c()
   
   for (row_idx in 1:(nrow(train_df))) {
   # for (row_idx in 1:5) {
@@ -191,7 +191,7 @@ local_trend_model = function(alpha, lambda, return_sse) {
       sse = (t(epsilon) %*% big_sigma %*% epsilon)
       sse_no_sigma = (t(epsilon) %*% epsilon)
       if (row_idx > 5) {
-        total_sse = total_sse + sse
+        total_sse = cbind(total_sse, c(y_hat_pred - df[row_idx,"nh"]))
       }
       # print(length(y_hats))
       
@@ -210,7 +210,7 @@ local_trend_model = function(alpha, lambda, return_sse) {
     }
   }
   if (return_sse) {
-    return(total_sse)
+    return(t(total_sse))
   } else {
     return(prediction_data)
   }
@@ -266,21 +266,21 @@ local_trend_model_sse = function(lambda) {
   }
   return(global_sse)
 }
+var(c(-1,2,3))
 
-
-local_trend_model(alpha=.05, lambda=.6,return_sse=TRUE)
+var(local_trend_model(alpha=.05, lambda=.95,return_sse=TRUE))
 local_trend_model(alpha=.05, lambda=.85,return_sse=TRUE)
 local_trend_model(alpha=.05, lambda=.9,return_sse=TRUE)
 sse_data = c()
 
-resolution = 10
+resolution = 100
 
-for (i in c((5.5 * resolution):(9 * resolution))/(10 * resolution)) {
-  sse_data = rbind(sse_data, c(i,local_trend_model(alpha=.05,lambda=i,return_sse=TRUE)))
+for (i in c((7.5 * resolution):(9.0 * resolution))/(10 * resolution)) {
+  sse_data = rbind(sse_data, c(i,var(local_trend_model(alpha=.05,lambda=i,return_sse=TRUE))))
 }
 plot(sse_data[,1], sse_data[,2])
-max(sse_data[,2])
-sse_data[which.max(sse_data[,2]),1]
+min(sse_data[,2])
+sse_data[which.min(sse_data[,2]),1]
 
 (prediction_data$prediction - prediction_data$upper_bound - abs(prediction_data$prediction - prediction_data$lower_bound)) < 0.001
 

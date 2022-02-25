@@ -1,5 +1,5 @@
 library(ggplot2)
-df = read.csv(file = "~/workspace/time_series_analysis/assignment_1.R/A1_annual.txt", header = TRUE, sep = "\t")
+df = read.csv(file = "~/workspace/time_series_analysis/assignment_1/A1_annual.txt", header = TRUE, sep = "\t")
 df$train_test = "train"
 head(df)
 total_records = length(df$train_test)
@@ -252,7 +252,7 @@ local_trend_model_sse = function(lambda) {
   return(sse)
 }
 sse_data = c()
-for (i in c(200:1000)/1000) {
+for (i in c(20:90)/100) {
   sse_data = rbind(sse_data, c(i,local_trend_model_sse(i)))
 }
 plot(sse_data[,1], sse_data[,2])

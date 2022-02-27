@@ -63,67 +63,58 @@ run = function(alpha) {
   
   L = cbind(c(1, 1), c(0, 1))
   
-  for (row_idx in 0:(nrow(train_df) - 1)) {
+  # Saving sigma_hat_sq outside the iteration, since the last sigma_hat_sq
+  # will be used during the forecast of the test data.
+  sigma_hat_sq = 0
+  
+  for (obersvation_idx in 0:(nrow(train_df) - 1)) {
     
-    degrees_of_freedom = -1 + row_idx
+    degrees_of_freedom = -1 + obersvation_idx
     
-    new_insert_vector = c(1, -1 * row_idx)
-    row = train_df[(row_idx + 1),]
+    new_insert_vector = c(1, -1 * obersvation_idx)
+    row = train_df[(obersvation_idx + 1),]
     F_n = F_n + new_insert_vector %*% t(new_insert_vector)
     h_n = solve(L) %*% h_n + c(1, 0) * row$nh
     
-    if (row_idx > 1) {
+    if (obersvation_idx > 1) {
       beta_hat_n = solve(F_n) %*% h_n
-      y_hat_pred = c(1, 1) %*% beta_hat_n 
+      y_hat = c(1, 1) %*% beta_hat_n 
       
-      curr_df = df[1:row_idx, ]
+      curr_df = df[1:obersvation_idx, ]
       
-      y_hats = cbind(1, c((-1 * (row_idx - 1)):0)) %*% beta_hat_n
+      y_hats = cbind(1, c((-1 * (obersvation_idx - 1)):0)) %*% beta_hat_n
       epsilon = cbind(y_hats - curr_df[curr_df$train_test == "train", "nh"])
       
       sse = (t(epsilon) %*% epsilon)
       sigma_hat_sq = sse / degrees_of_freedom 
       
       ## Variance prediction error
-      inner_part = t(c(1, 1)) %*% solve(F_n) %*% c(1, 1)
-      var_e_pred = sigma_hat_sq * (1 + inner_part)
-      # conv_pred = sqrt(sigma_hat_sq * inner_part)
+      var_e_pred = sigma_hat_sq * (1 + t(c(1, 1)) %*% solve(F_n) %*% c(1, 1))
       
-      ## Prediction interval 
+      upper_bound = y_hat + qt(1-(alpha/2), degrees_of_freedom) * sqrt(var_e_pred)
+      lower_bound = y_hat - qt(1-(alpha/2), degrees_of_freedom) * sqrt(var_e_pred)
       
-      upper_bound = y_hat_pred + qt(1-(alpha/2), degrees_of_freedom) * sqrt(var_e_pred)
-      lower_bound = y_hat_pred - qt(1-(alpha/2), degrees_of_freedom) * sqrt(var_e_pred)
+      # Adding + 1 here since we do a 1-step prediction with the 
+      # data which was observed until the given point in time
       
-      prediction_data = rbind(prediction_data, c(-1 * row_idx, as.numeric(row$year), as.numeric(row$nh), as.numeric(y_hat_pred), lower_bound, upper_bound, var_e_pred))
+      prediction_data = rbind(prediction_data, c(as.numeric(row$year) + 1, as.numeric(row$nh), as.numeric(y_hat), lower_bound, upper_bound, var_e_pred))
     } else {
-      prediction_data = rbind(prediction_data, c(-1 * row_idx, as.numeric(row$year), as.numeric(row$nh), 0, 0, 0, 0))
+      prediction_data = rbind(prediction_data, c(as.numeric(row$year) + 1, as.numeric(row$nh), 0, 0, 0, 0))
     }
-    # print(cat("pred_vector = ", prediction_vector, "y_hat_pred = ", y_hat_pred, "Interval [", upper_bound, ", ", lower_bound, "]"))
-    # pred_data = rbind(pred_data, c(i, y_hat_pred, upper_bound, lower_bound, y_hat_pred + conv_pred, y_hat_pred - conv_pred))
   }
   
   for (test_row_idx in 1:length(test_df)) {
     row = test_df[test_row_idx,]
     forecast_vec = c(1, row$time)
     
-    y_hat_pred = forecast_vec %*% beta_hat_n
-    print(c(forecast_vec, y_hat_pred))
-    curr_df = df[1:(row_idx + 1), ]
+    y_hat = forecast_vec %*% beta_hat_n
     
-    y_hats = cbind(1, c(curr_df[curr_df$train_test == "train", "time"])) %*% beta_hat_n
-    
-    epsilon = cbind(y_hats - curr_df[curr_df$train_test == "train", "nh"])
-    
-    sse = (t(epsilon) %*% epsilon)
-    
-    sigma_hat_sq = sse / (164 - 2)
     ## Variance prediction error
-    inner_part = t(forecast_vec) %*% solve(F_n) %*% forecast_vec
-    var_e_pred = sigma_hat_sq * (1 + inner_part)
+    var_e_pred = sigma_hat_sq * (1 + t(forecast_vec) %*% solve(F_n) %*% forecast_vec)
     
-    upper_bound = y_hat_pred - qt(alpha/2, degrees_of_freedom) * sqrt(var_e_pred)
-    lower_bound = y_hat_pred + qt(alpha/2, degrees_of_freedom) * sqrt(var_e_pred)
-    prediction_data = rbind(prediction_data, c(as.numeric(row$time), as.numeric(row$year), as.numeric(row$nh), as.numeric(y_hat_pred), lower_bound, upper_bound, var_e_pred))
+    upper_bound = y_hat - qt(alpha/2, degrees_of_freedom) * sqrt(var_e_pred)
+    lower_bound = y_hat + qt(alpha/2, degrees_of_freedom) * sqrt(var_e_pred)
+    prediction_data = rbind(prediction_data, c(as.numeric(row$year), as.numeric(row$nh), as.numeric(y_hat), lower_bound, upper_bound, var_e_pred))
   }
   
   
@@ -131,23 +122,24 @@ run = function(alpha) {
   return(prediction_data)
 }
 prediction_data = data.frame(run(alpha=.05))
-colnames(prediction_data) = c("row_idx", "year", "nh", "prediction", "lower_bound", "upper_bound", "var_e")
+colnames(prediction_data) = c("year", "nh", "prediction", "lower_bound", "upper_bound", "var_e")
 head(prediction_data)
 prediction_data$train_test = "train"
 prediction_data[165:169,"train_test"] = "test"
 tail(prediction_data)
 
 ggplot(data=prediction_data, mapping=aes(year, nh, color=train_test)) +
+  geom_errorbar(mapping=aes(year, ymin=lower_bound, ymax=upper_bound, color="prediction"), alpha=.5, show.legend = TRUE) +
   geom_point() +
-  geom_point(data=prediction_data, mapping=aes(year, prediction, color="prediction")) +
+  geom_point(data=prediction_data, mapping=aes(year, prediction, color="prediction"), alpha=.5) +
   #lims(y=c(-1.5,1.5)) +
   scale_color_manual(values=c("orange", "#E26860", "#53B0B5")) +
   labs(x = "Year", y = "Temp. anomalie in K", col="Type of data", title = "Temperature anomalie predcition with gloabl trend model") +
-  geom_ribbon(mapping=aes(year, ymin=lower_bound, ymax=upper_bound, color=train_test), alpha=.2, show.legend = TRUE) +
+  
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), legend.direction = "horizontal", legend.position = c(0.5,0.1),) + 
   scale_x_continuous(breaks=seq(1800,2020,10))
 
-ggsave("exercise_2_prediction_overview.png", width=18, height = 9, units = "cm", dpi=300)
+ggsave("exercise_2_prediction_overview.png", width=18, height = 9, units = "cm", dpi=500)
 
 tail(prediction_data)
 

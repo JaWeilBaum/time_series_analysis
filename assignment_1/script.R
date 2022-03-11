@@ -102,8 +102,8 @@ run = function(alpha) {
       ## Variance prediction error
       var_e_pred = sigma_hat_sq * (1 + t(c(1, 1)) %*% solve(F_n) %*% c(1, 1))
       
-      upper_bound = y_hat + qt(1-(alpha/2), degrees_of_freedom) * sqrt(var_e_pred)
-      lower_bound = y_hat - qt(1-(alpha/2), degrees_of_freedom) * sqrt(var_e_pred)
+      upper_bound = y_hat + qt(alpha/2, degrees_of_freedom) * sqrt(var_e_pred)
+      lower_bound = y_hat - qt(alpha/2, degrees_of_freedom) * sqrt(var_e_pred)
       
       # Adding + 1 here since we do a 1-step prediction with the 
       # data which was observed until the given point in time
@@ -214,7 +214,7 @@ local_trend_model = function(alpha, lambda, return_sse) {
       prediction_data = rbind(prediction_data, c(as.numeric(row$year) + 1, df[(obersvation_idx + 2), "nh"], NA, NA, NA, NA))
     }
   }
-  
+  print(solve(F_n) %*% h_n)
   for (test_row_idx in 2:length(test_df)) {
     row = test_df[test_row_idx,]
     forecast_vec = c(1, row$time)

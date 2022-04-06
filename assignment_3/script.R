@@ -20,9 +20,26 @@ width = 25
 
 
 data = read.csv("DataAssignment3.csv")
-
-uniqe_parties = unique(data$Government)
-parties_colors = unique(data$Color)
+data
+uniqe_parties = c(
+  "Conservative",
+  "Independent",
+  "Social Democrats",
+  "Social Liberals",
+  "Venstre"
+)
+parties_colors = c(
+  "black",
+  "green",
+  "red",
+  "pink",
+  "blue"
+)
+Y = data$NumberWords
+Y_diff = diff(data$NumberWords)
+Y_log = log(data$NumberWords)
+(Y_log_diff = diff(log(data$NumberWords)))
+(Y_log_diff_diff = diff(diff(log(data$NumberWords))))
 
 use_frame = FALSE
 par(mfrow=c(2,1))
@@ -30,11 +47,6 @@ plot(Y_diff)
 lines(Y_diff + sqrt(variance_over_time(Y_diff)), col="red")
 lines(Y_diff - sqrt(variance_over_time(Y_diff)), col="red")
 
-Y = data$NumberWords
-Y_diff = diff(data$NumberWords)
-Y_log = log(data$NumberWords)
-(Y_log_diff = diff(log(data$NumberWords)))
-(Y_log_diff_diff = diff(diff(log(data$NumberWords))))
 
 
 
@@ -118,6 +130,12 @@ dev.off()
 
 
 a_ma_1 = auto.arima(Y_log)
+par(mfrow=c(1,1))
+plot(cumsum(c(Y_log[102], cumsum(c(Y_log_diff[101], forecast(ma_1)$mean)))), type="l")
+
+lines(c(1:10), forecast(a_ma_1)$mean, col="red")
+
+
 
 a_ma_1_forecast = forecast(a_ma_1)
 
@@ -142,128 +160,142 @@ marks_l = c(0, "20 Mio.", "40 Mio.", "60 Mio.")
 marks = c(0, 2e7, 4e7, 6e7)
 axis(2,at=marks,labels=marks_l)
 axis(2,at=marks,labels=marks_l)
+
 dev.off()
 par(mfrow=c(1,1))
 
-data[102,]
-all_data[102,]
+transformed_data_upper = data.frame(forecast(ma_1, h=10)$upper)$X95.
+transformed_data_lower = data.frame(forecast(ma_1, h=10)$lower)$X95.
 
+png("ex_3_3_raw_prediction.png", width=width, height=height, units="cm", res=res)
+plot(c(1921:2020), forecast(ma_1, h=10)$x, frame=F, col="black", main="MA(1) prediction", ylab="Diff(Diff(log(Y)))", xlab="Year", xlim=c(1919,2030))
+lines(c(2021:2030), forecast(ma_1, h=10)$mean, col="steelblue", type="p")
+lines(c(2021:2030), transformed_data_upper, col="red", lty=2)
+lines(c(2021:2030), transformed_data_lower, col="red", lty=2)
+legend(1920, .25, legend=c("Observations", "Prediction", "95% Prediciton interval"), col=c("black", "steelblue", "red"), pch=c(1,1, NA), lty=c(NA, NA, 2))
+dev.off()
 
+diff(exp(forecast(a_ma_1, h=10)$mean))
+forecast(ma_1, h=10)$mean
 
-par(mfrow=c(1,2))
-plot(Y-exp(cumsum(c(Y_log[1], cumsum(c(Y_log_diff[1], Y_log_diff_diff))))))
-
-
-all_data = cbind(c(1919:2030), exp(cumsum(c(Y_log[1], Y_log_diff, forecast_data$`Point Forecast`))))
-low_95 = cbind(c(2020:2030), exp(cumsum(c(Y_log[1], Y_log_diff, forecast_data$`Lo 95`)))[102:112])
-high_95 = cbind(c(2020:2030), exp(cumsum(c(Y_log[1], Y_log_diff, forecast_data$`Hi 95`)))[102:112])
-
-plot(all_data, ylim=c(min(all_data[,2]), max(high_95)), xlab="Year", ylab="Number of words", frame=use_frame, )
-lines(low_95, col="red")
-lines(high_95, col="red")
 
 
 data$Government = as.factor(data$Government)
 data_extendend = data.frame(one_hot(as.data.table(data)))
 colnames(data_extendend)
-government_names = c("Government_Conservative", 
-                     "Government_Independent", 
-                     "Government_Social.Democrats", 
-                     "Government_Social.Liberals", 
+government_names = c("Government_Conservative",
+                     "Government_Independent",
+                     "Government_Social.Democrats",
+                     "Government_Social.Liberals",
                      "Government_Venstre")
 length(data_extendend$Date)
 length(Y_log_diff)
 
 
-#(auto_fit = auto.arima(Y_log_diff_diff, xreg = x_reg[3:102, ]))
-# plot(auto_fit)
-
-cbind(data_extendend[3:102, government_names])
+set.seed(1)
 
 
-x_reg = cbind(Conservative = data_extendend$Government_Conservative, 
-              Independent = data_extendend$Government_Independent,
-              Social_Democrats = data_extendend$Government_Social.Democrats,
-              Social_Liberals = data_extendend$Government_Social.Liberals,
-              Venstre = data_extendend$Government_Venstre
-)
+jitter_factor = 0.00001
 
-for (name in government_names) {
-  print(name)
-  print(sum(data_extendend[, name]))
-}
+design_matrix =  cbind(
+  conservative=jitter(data_extendend$Government_Conservative, factor = jitter_factor), 
+  independant=jitter(data_extendend$Government_Independent, factor = jitter_factor),
+  social_democrats=jitter(data_extendend$Government_Social.Democrats, factor = jitter_factor),
+  social_liberals=jitter(data_extendend$Government_Social.Liberals, factor = jitter_factor),
+  venstre=jitter(data_extendend$Government_Venstre, factor = jitter_factor))
 
+diff_design_matrix = apply(apply(design_matrix, 2, diff), 2, diff)
 
+(auto_fit = arima(Y_log_diff, order=c(1,0,1), include.mean = F, xreg = design_matrix[2:102,]))
 
-fit2 = arima(Y_log_diff_diff, order=c(3,0,0), xreg=x_reg[3:102,], include.mean = F)
+auto.arima(Y_log_diff_diff, allowmean = F, xreg = design_matrix[3:102,])
 
-fit2
+(auto_fit = auto.arima(Y_log_diff, xreg = design_matrix[2:102,]))
 
-factors = c(-0.7582, -0.451, -0.1211)
+png("ex_3_5_residuals.png", width=width, height=height, units="cm", res=res)
+# layout(matrix(c(1, 1, 2, 3), 2, 2, byrow = TRUE))
+par(mfrow=c(1,2))
+# ccf(auto_fit$residuals, Y_log_diff_diff)
+acf(auto_fit$residuals)
+pacf(auto_fit$residuals)
+dev.off()
 
-Y_log_diff_diff[98:100] %*% factors - 0.0001
-
-acf(fit2$residuals)
-pacf(fit2$residuals)
-head(x_reg)
-
-num_years = 10
-xreg_s_d = cbind(Conservative = rep(0,num_years),
-                 Independent = rep(0,num_years),
-                 Social_Democrats = rep(1,num_years),
-                 Social_Liberals = rep(0,num_years),
-                 Venstre = rep(0,num_years))
-
-head(xreg_s_d)
-fit
-forecast(fit, h=10)
 par(mfrow=c(1,1))
-plot(Y_log_diff_diff)
 
-fit2
-predict(fit2, newxreg=xreg_s_d)
+plot(forecast(auto_fit, xreg=xreg_test))
 
-cbind(intercept=1,x_reg)
+# auto_fit$xreg = design_matrix[3:102,]
 
-new_xreg = cbind(party_changed = c(0,as.numeric(data$Government[2:102] == data$Government[1:101])), x_reg)
-svd(new_xreg[2:102,])$d
+xreg_test = cbind(
+  conservative=rep(0, 10), 
+  independant=0, 
+  social_democrats=rep(1, 10), 
+  social_liberals=0,
+  venstre=0)
 
-(auto_fit = auto.arima(Y_log_diff_diff, xreg = cbind(
-  data_extendend$Government_Conservative, 
-  data_extendend$Government_Social.Democrats,
-  jitter(data_extendend$Government_Independent, factor = 0.0001),
-  data_extendend$Government_Venstre,
-  data_extendend$Government_Social.Liberals)[3:102,]))
+auto_fit_predict = forecast(auto_fit, xreg=xreg_test)
+auto_fit_predict.lower = data.frame(auto_fit_predict$lower)
+auto_fit_predict.upper = data.frame(auto_fit_predict$upper)
+
+auto_fit_predict_transformed = exp(cumsum(c(Y_log[102], auto_fit_predict$mean)))
+
+upper_95 = exp(cumsum(c(Y_log[102], auto_fit_predict.upper$X95.)))[2:11]
+lower_95 = exp(cumsum(c(Y_log[102], auto_fit_predict.lower$X95.)))[2:11]
+
+png("ex_3_5_social_democrats.png", width=width, height=height, units="cm", res=res)
+plot(c(1919:2020), Y, xlim=c(1960, 2030), ylim=c(0,1e8),
+     frame=F,
+     xlab="Year",
+     ylab="Number of words",
+     yaxt="n",
+     main="Prediction of Social Democrats (2021- 2030)")
+marks_l = c(0, "20 Mio.", "40 Mio.", "60 Mio.", "80 Mio.", "100 Mio.")
+marks = c(0, 2e7, 4e7, 6e7, 8e7, 1e8)
+axis(2,at=marks,labels=marks_l)
+lines(c(2021:2030), auto_fit_predict_transformed[3:12], col=parties_colors[3])
+lines(c(2021:2030), lower_95, col="red",lty=2)
+lines(c(2021:2030), upper_95, col="red",lty=2)
+legend(1960, 1e8, legend=c("Observations", "Prediction", "95% Prediction interval"), col=c("black", "red", "red"), lty=c(NA, 1, 2), pch=c(1,NA,NA))
+dev.off()
 
 
-a_f_f = forecast(auto_fit, xreg = cbind(0, rep(1, 10),0,0,0))
 
-plot(exp(cumsum(c(Y_log[1], cumsum(c(Y_log_diff[1], c(a_f_f$x, a_f_f$mean)))))))
+png("ex_3_5_all_parties.png", width=width, height=height, units="cm", res=res)
+par(mfrow=c(1,1))
+plot(c(1919:2020), Y, xlim=c(1950,2030), ylim=c(0,1e8), col=data$Color, 
+     main="Total number of words in danish legislation",
+     ylab="Number of words",
+     xlab="Year",
+     yaxt="n",frame=F)
 
-plot(forecast_data$`Point Forecast`)
+marks_l = c(0, "20 Mio.", "40 Mio.", "60 Mio.", "80 Mio.", "100 Mio.")
+marks = c(0, 2e7, 4e7, 6e7, 8e7, 1e8)
+axis(2,at=marks,labels=marks_l)
+
+uniqe_parties
+
+return_data = c()
+
+for (c_idx in c(1:5)) {
+  xreg_test = cbind(
+    conservative=rep(0, 10), 
+    independant=0, 
+    social_democrats=0, 
+    social_liberals=0,
+    venstre=0) 
+  xreg_test[, c_idx] = 1
+  auto_fit_predict = forecast(auto_fit, xreg=xreg_test)
+  
+  auto_fit_predict_transformed = exp(cumsum(c(Y_log[102], auto_fit_predict$mean)))
+  return_data = cbind(return_data, auto_fit_predict_transformed)
+  lines(c(2021:2030), auto_fit_predict_transformed[2:11], col=parties_colors[c_idx])
+}
+legend(1950, 1e8, legend=uniqe_parties, col=parties_colors,lty=1)
+colnames(return_data) = uniqe_parties
+rownames(return_data) = c(2020:2030)
+write.csv(return_data, "government_predictions.csv", )
+dev.off()
 
 
-
-
-plot(Y_log_diff_diff)
-points(predict(fit2, newxreg=xreg_s_d)$pred, col="blue")
-
-forecast()
-
-
-c(Y_log_diff[1], Y_log_diff_diff, predict(fit2, newxreg=new_x_reg)$pred)
-
-plot(exp(cumsum(c(Y_log[1], cumsum(c(Y_log_diff[1], Y_log_diff_diff, predict(fit2, newxreg=new_x_reg)$pred))))), type='l')
-
-lines(exp(cumsum(c(Y_log[1], cumsum(c(Y_log_diff[1], Y_log_diff_diff, predict(fit2, newxreg=new_x_reg)$pred))))), col="red")
-new_x_reg = cbind(rep(0,5),rep(0,5),rep(1,5),rep(0,5),rep(0,5))
-lines(exp(cumsum(c(Y_log[1], cumsum(c(Y_log_diff[1], Y_log_diff_diff, predict(fit2, newxreg=new_x_reg)$pred))))), col="green")
-Y[100]
-forecast(fit2, newxreg=new_x_reg)
-
-par(mfrow=c(2,2))
-acf(fit2$residuals)
-pacf(fit2$residuals)
-plot(fit2)
 
 

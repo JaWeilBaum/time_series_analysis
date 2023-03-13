@@ -198,19 +198,13 @@ set.seed(1)
 jitter_factor = 0.00001
 
 design_matrix =  cbind(
-  conservative=jitter(data_extendend$Government_Conservative, factor = jitter_factor), 
-  independant=jitter(data_extendend$Government_Independent, factor = jitter_factor),
-  social_democrats=jitter(data_extendend$Government_Social.Democrats, factor = jitter_factor),
-  social_liberals=jitter(data_extendend$Government_Social.Liberals, factor = jitter_factor),
-  venstre=jitter(data_extendend$Government_Venstre, factor = jitter_factor))
+  conservative=data_extendend$Government_Conservative + rnorm(102, 0, jitter_factor), 
+  independant=data_extendend$Government_Independent + rnorm(102, 0, jitter_factor),
+  social_democrats=data_extendend$Government_Social.Democrats + rnorm(102, 0, jitter_factor),
+  social_liberals=data_extendend$Government_Social.Liberals + rnorm(102, 0, jitter_factor),
+  venstre=data_extendend$Government_Venstre + rnorm(102, 0, jitter_factor))
 
-diff_design_matrix = apply(apply(design_matrix, 2, diff), 2, diff)
-
-(auto_fit = arima(Y_log_diff, order=c(1,0,1), include.mean = F, xreg = design_matrix[2:102,]))
-
-auto.arima(Y_log_diff_diff, allowmean = F, xreg = design_matrix[3:102,])
-
-(auto_fit = auto.arima(Y_log_diff, xreg = design_matrix[2:102,]))
+(auto_fit = auto.arima(Y_log_diff, allowmean=F, xreg = design_matrix[2:102,]))
 
 png("ex_3_5_residuals.png", width=width, height=height, units="cm", res=res)
 # layout(matrix(c(1, 1, 2, 3), 2, 2, byrow = TRUE))
@@ -218,16 +212,15 @@ par(mfrow=c(1,2))
 # ccf(auto_fit$residuals, Y_log_diff_diff)
 acf(auto_fit$residuals)
 pacf(auto_fit$residuals)
+ccf(auto_fit$residuals, Y_log_diff)
 dev.off()
 
 par(mfrow=c(1,1))
 
 plot(forecast(auto_fit, xreg=xreg_test))
 
-# auto_fit$xreg = design_matrix[3:102,]
-
 xreg_test = cbind(
-  conservative=rep(0, 10), 
+  conservative=0, 
   independant=0, 
   social_democrats=rep(1, 10), 
   social_liberals=0,
@@ -295,7 +288,6 @@ colnames(return_data) = uniqe_parties
 rownames(return_data) = c(2020:2030)
 write.csv(return_data, "government_predictions.csv", )
 dev.off()
-
 
 
 
